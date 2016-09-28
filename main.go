@@ -5,10 +5,12 @@ import (
 	"github.com/codegangsta/cli"
 	"github.com/gtfierro/bwquery/api"
 	messages "github.com/gtfierro/durandal/archiver"
+	"github.com/pkg/errors"
 	bw "gopkg.in/immesys/bw2bind.v5"
 	"gopkg.in/readline.v1"
 	"os"
 	"os/user"
+	"time"
 )
 
 func doQuery(c *cli.Context) error {
@@ -24,6 +26,28 @@ func doIQuery(c *cli.Context) error {
 	vk := client.SetEntityFileOrExit(c.String("entity"))
 	client.OverrideAutoChainTo(true)
 	API := api.NewAPI(client, vk, c.String("archiver"))
+
+	res, err := client.Query(&bw.QueryParams{
+		URI: c.String("archiver") + "/s.giles/!meta/lastalive",
+	})
+	if err != nil {
+		return err
+	}
+	for msg := range res {
+		var md map[string]interface{}
+		po := msg.GetOnePODF(bw.PODFMaskSMetadata)
+		if err := po.(bw.MsgPackPayloadObject).ValueInto(&md); err != nil {
+			fmt.Println(errors.Wrap(err, "Could not decode lastalive time"))
+		} else {
+			//2016-09-16 10:41:40.818797445 -0700 PDT
+			lastalive, err := time.Parse("2006-01-02 15:04:05 -0700 MST", md["val"].(string))
+			if err != nil {
+				fmt.Println(errors.Wrap(err, "Could not decode lastalive time"))
+			}
+			ago := time.Since(lastalive)
+			fmt.Printf("Archiver at %s last alive at %v (%v ago)", c.String("archiver"), lastalive, ago)
+		}
+	}
 
 	currentUser, err := user.Current()
 	if err != nil {

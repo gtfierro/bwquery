@@ -58,6 +58,8 @@ func (api *API) Query(query string) error {
 			isMyResponse = isMyResponse || found
 			if found {
 				fmt.Println(err)
+				wg.Done()
+				break
 			}
 
 			// check for metadata
