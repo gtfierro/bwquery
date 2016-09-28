@@ -10,6 +10,10 @@ import (
 	"time"
 )
 
+const GilesQueryChangedRangesPIDString = "2.0.8.8"
+
+var GilesQueryChangedRangesPID = bw.FromDotForm(GilesQueryChangedRangesPIDString)
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -76,6 +80,15 @@ func (api *API) Query(query string) error {
 			isMyResponse = isMyResponse || found
 			if err == nil && found {
 				fmt.Println(timeseries.Dump())
+			} else if found && err != nil {
+				fmt.Println(err)
+			}
+
+			// check for changed
+			found, changed, err := GetChanged(nonce, msg)
+			isMyResponse = isMyResponse || found
+			if err == nil && found {
+				fmt.Println(changed.Dump())
 			} else if found && err != nil {
 				fmt.Println(err)
 			}
@@ -175,6 +188,24 @@ func GetTimeseries(nonce uint32, msg *bw.SimpleMessage) (bool, messages.QueryTim
 		return true, timeseriesResults, nil
 	}
 	return false, timeseriesResults, nil
+}
+
+// Extracts Timeseries from Giles response. Returns false if no related message was found
+func GetChanged(nonce uint32, msg *bw.SimpleMessage) (bool, messages.QueryChangedResult, error) {
+	var (
+		po             bw.PayloadObject
+		changedResults messages.QueryChangedResult
+	)
+	if po = msg.GetOnePODF(GilesQueryChangedRangesPIDString); po != nil {
+		if err := po.(bw.MsgPackPayloadObject).ValueInto(&changedResults); err != nil {
+			return false, changedResults, err
+		}
+		if changedResults.Nonce != nonce {
+			return false, changedResults, nil
+		}
+		return true, changedResults, nil
+	}
+	return false, changedResults, nil
 }
 
 //func GetChangedRanges(nonce uint32, msg *bw.SimpleMessage) (bool, messages.Query
